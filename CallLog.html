@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Call Log Manager</title>
+  <meta name="description" content="The HTML5 Herald">
+  <link rel="stylesheet" href="CallLog.css?v=1.0">
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+  <!-- <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous"> -->
+</head>
+
+<body>
+  <nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+          <span class="sr-only">Toggle navigation</span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="#">Call Log Manager</a>
+      </div>
+      <div id="navbar" class="collapse navbar-collapse">
+        <ul class="nav navbar-nav">
+          <li class="active"><a href="#">Home</a></li>
+          <li><a href="#dashboard">Dashboard</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div id="addLogContainer" class="container" data-bind="visible: logForm">
+    <div class="row">
+      <div class="form-group col-md-4">
+        <label for="logNumber">Log Number</label>
+        <input type="text" id="logNumber" class="form-control" readonly data-bind="value: log().id">
+      </div>
+      <div class="form-group col-md-4">
+        <label for="title">Date</label>
+        <input type="Date" class="form-control" id="title" data-bind="value: log().date">
+      </div>
+      <div class="form-group col-md-4">
+        <label for="title">Title</label>
+        <input type="text" class="form-control" id="title" data-bind="value: log().title">
+      </div>
+    </div>
+    <div class="row">
+      <div class="form-group col-md-4">
+        <label for="firstName">First Name</label>
+        <input type="text" class="form-control" id="firstName" data-bind="value: log().firstName">
+      </div>
+
+      <div class="form-group col-md-4">
+        <label for="lastName">Last Name</label>
+        <input type="text" class="form-control" id="lastName" data-bind="value: log().lastName">
+      </div>
+
+      <div class="form-group col-md-4">
+        <label for="status">Status</label>
+        <select id="status" class="form-control" data-bind="options: status, value: log().status"></select>
+      </div>
+
+    </div>
+
+    <div class="row">
+      <div class="form-group col-md-4">
+        <label for="phoneNumber">Phone Number</label>
+        <input type="tel" class="form-control" id="phoneNumber" data-bind="value: log().phone">
+      </div>
+
+      <div class="form-group col-md-4">
+        <label for="status">Category</label>
+        <select id="status" class="form-control" data-bind="options: category, value: log().category"></select>
+      </div>
+
+      <div class="form-group col-md-4">
+        <label for="assignee">Assignee</label>
+        <select id="assignee" class="form-control" data-bind="options: assignees, optionsValue: 'empID', value:log().empID, optionsText: function(item) {
+                     return item.firstName() + ' ' + item.lastName();
+                 }"></select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="form-group col-md-12">
+        <label for="description">Issue Description</label>
+        <textarea id="description" class="form-control" rows="5" data-bind="value: log().description"></textarea>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="form-group col-md-12">
+        <label for="description">Resolution</label>
+        <textarea id="description" class="form-control" rows="5" data-bind="value: log().resolution"></textarea>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="form-group col-md-3">
+        <button type="cancelButton" class="btn btn-danger btn-lg" data-bind="click: CancelLog">Cancel</button>
+      </div>
+      <div class="form-group col-md-3 pull-right">
+        <button type="button" class="btn btn-primary btn-lg pull-right" data-bind="click: SaveLog">Save</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="logHistory" class="container" data-bind="visible: logHistory">
+    <div class="row">
+      <div class="col-md-4 pull-right">
+        <input type="text" id="searchText" class="form-control" placeholder="Search for call logs..." data-bind="textInput: search">
+      </div>
+    </div>
+
+    <div class="row">
+      <table id="historyTable" class="table table-hover">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Date</th>
+            <th>First Name</th>
+            <th>Last Name</th>
+            <th>Phone Number</th>
+            <th>Category</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody data-bind="foreach:filtered">
+          <tr data-bind="click: function() { $root.EditLog($data); }">
+            <td data-bind="text:id"></td>
+            <td data-bind="text:title"></td>
+            <td data-bind="text:date"</td>
+            <td data-bind="text:firstName"></td>
+            <td data-bind="text:lastName"></td>
+            <td data-bind="text:phone"></td>
+            <td data-bind="text:category"></td>
+            <td data-bind="text:status"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="row">
+      <div class="form-group col-md-3 pull-right">
+        <button id="addLogButton" type="button" class="btn btn-primary pull-right" data-bind="click: AddLog">Add Log</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Script Includes -->
+  <script src="https://code.jquery.com/jquery-2.2.0.min.js" ></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/knockout/3.4.0/knockout-min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/knockout-validation/2.0.3/knockout.validation.min.js"></script>
+  <script src="CallLog.js"></script>
+</body>
+</html>
