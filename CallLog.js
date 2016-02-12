@@ -1,27 +1,29 @@
-function Log(id){
-  var self = this;
-  self.id =  ko.observable(id);
-  self.title = ko.observable('');
-  self.date = ko.observable("2000-01-01");
-  self.firstName = ko.observable('');
-  self.lastName = ko.observable('');
-  self.phone = ko.observable('');
-  self.status = ko.observable('In Progress');
-  self.assignee = ko.observable(0);
-  self.category = ko.observable('Open');
-  self.description = ko.observable('');
-  self.resolution = ko.observable('');
-
-}
-
 function Log(id, title, date, first, last, phone, status, assignee, category, description, resolution){
   var self = this;
   self.id = ko.observable(id);
-  self.title = ko.observable(title);
-  self.date = ko.observable(date);
-  self.firstName = ko.observable(first);
-  self.lastName = ko.observable(last);
-  self.phone = ko.observable(phone);
+  self.title = ko.observable(title).extend({ required: true});
+  self.date = ko.observable(date).extend({ required: true});
+  self.firstName = ko.observable(first).extend({
+                                          required: true,
+                                          pattern: {
+                                            message: "Only letters, no numbers or symbols.",
+                                            params: '^[a-zA-Z]+$'
+                                          }
+                                        });
+  self.lastName = ko.observable(last).extend({
+                                        required: true,
+                                        pattern: {
+                                          message: "Only letters, no numbers or symbols.",
+                                          params: '^[a-zA-Z]+$'
+                                        }
+                                      });;
+  self.phone = ko.observable(phone).extend({
+                                        required: true,
+                                        pattern: {
+                                          message: "Phone must match ###-###-#### pattern.",
+                                          params: '^\\d{3}-\\d{3}-\\d{4}$'
+                                        }
+                                      });
   self.status = ko.observable(status);
   self.assignee = ko.observable(assignee);
   self.category = ko.observable(category);
@@ -29,60 +31,62 @@ function Log(id, title, date, first, last, phone, status, assignee, category, de
   self.resolution = ko.observable(resolution);
 }
 
-function LoadLog(log){
-  var self = this;
-  self.id = ko.observable(log.id);
-  self.title = ko.observable(log.title);
-  self.date = ko.observable(log.date);
-  self.firstName = ko.observable(log.firstName);
-  self.lastName = ko.observable(log.lastName);
-  self.phone = ko.observable(log.phone);
-  self.status = ko.observable(log.status);
-  self.assignee = ko.observable(log.assignee.empID);
-  self.category = ko.observable(log.category);
-  self.description = ko.observable(log.description);
-  self.resolution = ko.observable(log.resolution);
+function EmptyLog(id){
+  return new Log(id, '', "2000-01-01", '' , '', '', 'In Progress', 0, 'Open', '', '');
+
 }
 
-function LoadLogs(logs){
+function ParseLog(log){
+  return new Log(log.id, log.title, log.date, log.firstName, log.lastName,
+              log.phone, log.status, log.assignee, log.category, log.description, log.resolution);
+}
+
+function ParseLogs(logs){
   var outLogs = [];
   for (var i = 0; i < logs.length; i++) {
-    outLogs.push(new LoadLog(logs[i]));
+    outLogs.push(ParseLog(logs[i]));
   };
   return outLogs;
 }
 
-function Assignee(){
-  var self = this;
-
-  self.empID = ko.observable(0);
-  self.firstName = ko.observable("");
-  self.lastName = ko.observable("");
-  self.email = ko.observable("");
-}
-
 function Assignee(empID,firstName,lastName,email){
   var self = this;
+  self.empID = ko.observable(empID).extend({
+                                        required: true,
+                                        pattern: {
+                                          message: "Only numbers accepted for EmployeeID.",
+                                          params: '^[0-9]+$'
+                                        }
+                                      });
+  self.firstName = ko.observable(firstName).extend({
+                                        required: true,
+                                        pattern: {
+                                          message: "Only letters, no numbers or symbols.",
+                                          params: '^[a-zA-Z]+$'
+                                        }
+                                      });
+  self.lastName = ko.observable(lastName).extend({
+                                          required: true,
+                                          pattern: {
+                                            message: "Only letters, no numbers or symbols.",
+                                            params: '^[a-zA-Z]+$'
+                                          }
+                                        });
+  self.email = ko.observable(email).extend({ email: true });
+}
 
-  self.empID = ko.observable(empID);
-  self.firstName = ko.observable(firstName);
-  self.lastName = ko.observable(lastName);
-  self.email = ko.observable(email);
+function EmptyAssignee(){
+  return new Assignee(0, "", "", "");
 }
 
 function LoadAssignee(assignee){
-  var self = this;
-
-  self.empID = ko.observable(assignee.empID);
-  self.firstName = ko.observable(assignee.firstName);
-  self.lastName = ko.observable(assignee.lastName);
-  self.email = ko.observable(assignee.email);
+  return new Assignee(assignee.empID, assignee.firstName, assignee.lastName, assignee.email);
 }
 
 function LoadAssignees(newAssignees){
   var assignees = [];
   for (var i = 0; i < newAssignees.length; i++) {
-    assignees.push(new LoadAssignee(newAssignees[i]));
+    assignees.push(LoadAssignee(newAssignees[i]));
   };
   return assignees;
 }
@@ -92,7 +96,9 @@ function CallLogViewModel() {
   self.search = ko.observable("");
   self.logForm = ko.observable(false);
   self.logHistory = ko.observable(true);
+  self.assignee = ko.validatedObservable(EmptyAssignee());
   self.logs = ko.observableArray([]);
+  self.logForEdit = {};
   self.filtered = ko.observableArray([]);
   self.assignees = ko.observableArray([]);
   self.localStorage = false;
@@ -102,12 +108,29 @@ function CallLogViewModel() {
     "Completed",
     "Cancelled"
   ]);
-  self.category = ko.observableArray([
-    "Login issue",
-    "Software request",
-    "Hardware request"
-  ]);
+  self.category = ko.observableArray([]);
   self.description = ko.observable('');
+  self.dashboard= ko.observable(false);
+  self.home=ko.observable(true);
+  self.admin=ko.observable(false);
+
+  self.ShowDashboard = function (){
+    self.dashboard(true);
+    self.home(false);
+    self.admin(false);
+  };
+
+  self.ShowHome = function(){
+    self.home(true);
+    self.dashboard(false);
+    self.admin(false);
+  };
+
+  self.ShowAdmin = function(){
+    self.admin(true);
+    self.home(false);
+    self.dashboard(false);
+  };
 
 
   self.GetNextID = function () {
@@ -120,7 +143,7 @@ function CallLogViewModel() {
     }
   };
 
-  self.log = ko.observable(new Log(self.GetNextID()));
+  self.log = ko.validatedObservable(EmptyLog(self.GetNextID()));
 
   self.Filter = ko.computed(function () {
     var filtered = [];
@@ -133,7 +156,9 @@ function CallLogViewModel() {
             || log.firstName().toLowerCase().indexOf(s.toLowerCase()) > -1
             || log.lastName().toLowerCase().indexOf(s.toLowerCase()) > -1
             || log.phone().toLowerCase().indexOf(s.toLowerCase()) > -1
-            || log.status().toLowerCase().indexOf(s.toLowerCase()) > -1){
+            || log.status().toLowerCase().indexOf(s.toLowerCase()) > -1
+            || log.category().toLowerCase().indexOf(s.toLowerCase()) > -1
+            || log.date().toLowerCase().indexOf(s.toLowerCase()) > -1){
           filtered.push(log)
         }
       }
@@ -146,7 +171,7 @@ function CallLogViewModel() {
   });
 
   self.AddLog = function (){
-    self.log(new Log(self.GetNextID()));
+    self.log(EmptyLog(self.GetNextID()));
     self.logForm(true);
     self.logHistory(false);
     self.new = true;
@@ -158,19 +183,36 @@ function CallLogViewModel() {
   };
 
   self.EditLog = function(logToEdit){
-    self.log(logToEdit);
+    self.log(ParseLog(ko.toJS(logToEdit)));
+    self.logForEdit = logToEdit;
     self.logForm(true);
     self.logHistory(false);
     self.new = false;
-    self.SaveToLocalStorage();
   };
 
   self.SaveLog = function (){
-    if (self.new === true) {
+    if(self.log.isValid()){
+      if (self.new !== true) {
+        self.logs.remove(self.logForEdit);
+      }
       self.logs.push(self.log());
+      self.logForm(false);
+      self.logHistory(true);
+      self.SaveToLocalStorage();
     }
-    self.logForm(false);
-    self.logHistory(true);
+    else{
+      $("#errorModal").modal("show");
+    }
+
+  };
+
+  self.SaveAssignee = function () {
+
+  };
+
+  self.EditAssignee = function (assigneeToEdit) {
+    self.log(assigneeToEdit);
+    self.new = false;
     self.SaveToLocalStorage();
   };
 
@@ -185,7 +227,7 @@ function CallLogViewModel() {
     var logs = JSON.parse(localStorage.logs);
     var assignees = JSON.parse(localStorage.assignees);
     var category = JSON.parse(localStorage.category);
-    self.logs(LoadLogs(logs));
+    self.logs(ParseLogs(logs));
     self.assignees(LoadAssignees(assignees));
     self.category(category);
   };
@@ -199,7 +241,6 @@ function CallLogViewModel() {
 }
 
 var callLogViewModel = new CallLogViewModel();
-
 
 function SeedData(vm){
   vm.logs([
