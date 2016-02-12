@@ -1,3 +1,7 @@
+function FormattedDate(date){
+  return date.getFullYear() + '-' + ('0' + (date.getMonth()+1)).slice(-2) + '-' +('0' + date.getDate()).slice(-2);
+}
+
 function Log(id, title, date, first, last, phone, status, assignee, category, description, resolution){
   var self = this;
   self.id = ko.observable(id);
@@ -32,7 +36,7 @@ function Log(id, title, date, first, last, phone, status, assignee, category, de
 }
 
 function EmptyLog(id){
-  return new Log(id, '', "2000-01-01", '' , '', '', 'In Progress', 0, 'Open', '', '');
+  return new Log(id, '', FormattedDate(new Date()), '' , '', '', 'In Progress', 0, 'Open', '', '');
 
 }
 
@@ -91,12 +95,126 @@ function LoadAssignees(newAssignees){
   return assignees;
 }
 
+function GetLastWeekDates(){
+  var dates = [];
+  var setDate = new Date();
+  for (var i = 6; i >= 0; i--) {
+    setDate.setDate(new Date().getDate() - i);
+    dates.push(FormattedDate(setDate));
+  }
+  return dates;
+}
+
+function CreatePieChart(data){
+  $("#chart").kendoChart({
+        title: {
+            position: "bottom",
+            text: "Calls by category"
+        },
+        legend: {
+            visible: false
+        },
+        chartArea: {
+            background: ""
+        },
+        seriesDefaults: {
+            labels: {
+                visible: true,
+                background: "transparent",
+                template: "#= category #: #= value#"
+            }
+        },
+        series: [{
+            type: "pie",
+            startAngle: 150,
+            data: callLogViewModel.GetCategoryChartData()
+        }],
+        tooltip: {
+            visible: true,
+            format: "{0}"
+        }
+    });
+};
+
+
+function CreateBarChart(series){
+  $("#chart").kendoChart({
+    title: {
+        text: "Calls by Assignee"
+    },
+    legend: {
+        visible: false
+    },
+    seriesDefaults: {
+        type: "column",
+    },
+    series: [{
+        name: "Call Count",
+        data: series.data
+    }],
+    valueAxis: {
+        line: {
+            visible: false
+        }
+    },
+    categoryAxis: {
+        categories: series.assignees,
+        majorGridLines: {
+            visible: false
+        }
+    },
+    tooltip: {
+        visible: true,
+        template:  "#= series.name #: #= value#"
+    }
+  });
+};
+
+function CreateDailyChart(series) {
+    $("#chart").kendoChart({
+        title: {
+            text: "Gross domestic product growth \n /GDP annual %/"
+        },
+        legend: {
+            visible: false
+        },
+        seriesDefaults: {
+            type: "line",
+            style: "smooth"
+        },
+        series: [{
+            name: "Calls",
+            data: series.data
+        }],
+        valueAxis: {
+            labels: {
+                format: "{0}"
+            },
+            axisCrossingValue: -1
+        },
+        categoryAxis: {
+            categories: series.dates,
+            labels: {
+                rotation: "auto"
+            }
+        },
+        tooltip: {
+            visible: true,
+            format: "{0}%",
+            template: "#= series.name #: #= value #"
+        }
+    });
+}
+
 function CallLogViewModel() {
   var self = this;
+
+
   self.search = ko.observable("");
   self.logForm = ko.observable(false);
   self.logHistory = ko.observable(true);
   self.assignee = ko.validatedObservable(EmptyAssignee());
+  self.assigneeToEdit = {};
   self.logs = ko.observableArray([]);
   self.logForEdit = {};
   self.filtered = ko.observableArray([]);
@@ -108,16 +226,42 @@ function CallLogViewModel() {
     "Completed",
     "Cancelled"
   ]);
-  self.category = ko.observableArray([]);
+  self.category = ko.observable('');
+  self.categoryToEdit = '';
+  self.categories = ko.observableArray([]);
   self.description = ko.observable('');
   self.dashboard= ko.observable(false);
   self.home=ko.observable(true);
   self.admin=ko.observable(false);
+  self.errorMessage = ko.observable("");
+  self.new = true;
+  self.assigneeNew = true;
+  self.categoryNew = true;
+  self.categoryPlot = ko.observable(false);
+  self.assigneePlot = ko.observable(false);
+  self.dailyPlot = ko.observable(false);
+
+  self.GetNextLogID = function(){
+    return self.GetNextID(self.logs(), "id");
+  };
+
+  self.GetNextID = function (objectArray, idField) {
+    if (objectArray.length > 0) {
+      var sortedArray = objectArray.sort(function(l, r){ l[idField]() > r[idField]()})
+      return sortedArray[sortedArray.length - 1][idField]() + 1;
+    }
+    else {
+      return 1;
+    }
+  };
+
+  self.log = ko.validatedObservable(EmptyLog(self.GetNextLogID()));
 
   self.ShowDashboard = function (){
     self.dashboard(true);
     self.home(false);
     self.admin(false);
+    self.ShowCategoryPlot();
   };
 
   self.ShowHome = function(){
@@ -132,18 +276,105 @@ function CallLogViewModel() {
     self.dashboard(false);
   };
 
-
-  self.GetNextID = function () {
-    if (self.logs().length > 0) {
-      var sortedArray = self.logs().sort(function(l, r){ l.id() > r.id()})
-      return sortedArray[sortedArray.length - 1].id() + 1;
+  self.GetCategoryChartData = function(){
+    var data = [];
+    for (var i = 0; i < self.logs().length; i++) {
+      var currentCat = self.logs()[i].category();
+      var found = false;
+      for (var j = 0; j < data.length; j++) {
+        if(data[j].category == currentCat){
+          data[j].value += 1;
+        }
+      }
+      if (!found) {
+        data.push({ category: currentCat, value: 1 });
+      }
     }
-    else {
-      return 1;
-    }
+    return data;
   };
 
-  self.log = ko.validatedObservable(EmptyLog(self.GetNextID()));
+  self.GetFullName = function (assignee) {
+    return assignee.firstName() + " " + assignee.lastName();
+  };
+
+  self.GetAssigneeChartData = function(){
+    var series = { assignees: [], data:[]};
+
+    for (var i = 0; i < self.assignees().length; i++) {
+      var currAssignee = self.assignees()[i];
+      series.assignees.push(self.GetFullName(currAssignee));
+      var count = 0;
+      for (var j = 0; j < self.logs().length; j++) {
+        var currLog =self.logs()[j];
+        if(currLog.assignee() === currAssignee.empID()){
+          count += 1;
+        }
+      }
+      series.data.push(count);
+    }
+
+    return series;
+  };
+
+  self.GetDailyChartData = function(){
+    var series = { dates: [], data: [] };
+    var dates = GetLastWeekDates();
+
+    for (var i = 0; i < dates.length; i++) {
+      var currDate = dates[i];
+      var count = 0;
+      for (var j = 0; j < self.logs().length; j++) {
+        var currLog = self.logs()[j];
+        if(currLog.date() === currDate){
+          count += 1
+        }
+      }
+      series.dates.push(currDate);
+      series.data.push(count);
+    }
+
+    return series;
+  }
+
+  self.ShowCategoryPlot = function(){
+    self.categoryPlot(true);
+    self.assigneePlot(false);
+    self.dailyPlot(false);
+    CreatePieChart(self.GetCategoryChartData());
+  }
+  self.ShowAssigneePlot = function(){
+    self.assigneePlot(true);
+    self.categoryPlot(false);
+    self.dailyPlot(false);
+    CreateBarChart(self.GetAssigneeChartData());
+  }
+  self.ShowDailyPlot = function(){
+    self.dailyPlot(true);
+    self.categoryPlot(false);
+    self.assigneePlot(false);
+    CreateDailyChart(self.GetDailyChartData());
+  }
+
+  self.IsDuplicateAssigneeID = function(empID){
+    return self.IsDuplicateID(self.assignees(), "empID", self.assignee().empID());
+  };
+
+  self.IsDuplicateID = function(objectArray, idField, id){
+    for (var i = 0; i < objectArray.length; i++) {
+      if(objectArray[i][idField]() == id){
+        return true;
+      }
+    }
+      return false;
+  };
+
+  self.IsDuplicateCategory = function(){
+    for (var i = 0; i < self.categories().length; i++) {
+      if(self.categories()[i].toLowerCase() == self.category().toLowerCase())
+        return true;
+    }
+    return false;
+  };
 
   self.Filter = ko.computed(function () {
     var filtered = [];
@@ -167,11 +398,10 @@ function CallLogViewModel() {
     else {
       self.filtered(self.logs());
     }
-
   });
 
   self.AddLog = function (){
-    self.log(EmptyLog(self.GetNextID()));
+    self.log(EmptyLog(self.GetNextLogID()));
     self.logForm(true);
     self.logHistory(false);
     self.new = true;
@@ -201,35 +431,78 @@ function CallLogViewModel() {
       self.SaveToLocalStorage();
     }
     else{
+      self.errorMessage("Unable to save. Incorrect input, please check error messages in red.");
       $("#errorModal").modal("show");
     }
 
   };
 
-  self.SaveAssignee = function () {
-
+  self.EditAssignee = function (assigneeToEdit) {
+    self.assignee(LoadAssignee(ko.toJS(assigneeToEdit)));
+    self.assigneeToEdit = assigneeToEdit;
+    self.assigneeNew = false;
   };
 
-  self.EditAssignee = function (assigneeToEdit) {
-    self.log(assigneeToEdit);
-    self.new = false;
+  self.SaveAssignee = function () {
+    if (!self.assignee.isValid()) {
+      self.errorMessage("Unable to save. Incorrect input, please check error messages in red.");
+      $("#errorModal").modal("show");
+    }
+    else{
+      if (self.assigneeNew !== true) {
+        self.assignees.remove(self.assigneeToEdit);
+      }
+      else{
+        if(self.IsDuplicateAssigneeID()){
+          self.errorMessage("Unable to save. Duplicate Employee Id: " + self.assignee().empID() + ".");
+          $("#errorModal").modal("show");
+          return;
+        }
+      }
+      self.assigneeNew = true;
+      self.assignees.push(self.assignee());
+      self.assignee(EmptyAssignee());
+      self.SaveToLocalStorage();
+   }
+  };
+
+  self.SaveCategory = function () {
+    if (self.categoryNew) {
+      if(self.IsDuplicateCategory()){
+        self.errorMessage("Unable to save. Duplicate Category.");
+        $("#errorModal").modal("show");
+        return;
+      }
+    }
+    else{
+      self.categories.remove(self.categoryToEdit);
+    }
+    self.categoryNew = true;
+    self.categories.push(self.category());
+    self.category('');
     self.SaveToLocalStorage();
   };
+
+  self.EditCategory = function(categoryToEdit) {
+    self.category(categoryToEdit);
+    self.categoryToEdit = categoryToEdit;
+    self.categoryNew = false;
+  }
 
   self.SaveToLocalStorage = function() {
     localStorage.callLogApp = true;
     localStorage.logs = ko.toJSON(self.logs);
     localStorage.assignees = ko.toJSON(self.assignees);
-    localStorage.category = ko.toJSON(self.category);
+    localStorage.categories = ko.toJSON(self.categories);
   };
 
   self.LoadFromLocalStorage = function () {
     var logs = JSON.parse(localStorage.logs);
     var assignees = JSON.parse(localStorage.assignees);
-    var category = JSON.parse(localStorage.category);
+    var categories = JSON.parse(localStorage.categories);
     self.logs(ParseLogs(logs));
     self.assignees(LoadAssignees(assignees));
-    self.category(category);
+    self.categories(categories);
   };
 
   self.Init = function(){
@@ -238,7 +511,7 @@ function CallLogViewModel() {
     }
     self.Filter();
   };
-}
+} //End view model
 
 var callLogViewModel = new CallLogViewModel();
 
@@ -252,7 +525,7 @@ function SeedData(vm){
     new Assignee(0,"Unassigned","",""),
     new Assignee(1, "Jane", "Doe", "jane.doe@sunoco.com")
   ]);
-  vm.category(["Login issue", "Software request", "Hardware request"]);
+  vm.categories(["Login issue", "Software request", "Hardware request"]);
 }
 
 //seed test data if storage is empty
@@ -270,5 +543,6 @@ else{
   }
 }
 
+ko.validation.init({insertMessages: false});
 callLogViewModel.Init();
 ko.applyBindings(callLogViewModel);
